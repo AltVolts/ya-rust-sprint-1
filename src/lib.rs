@@ -1,23 +1,51 @@
-use std::io::{BufRead, BufReader, Read};
 mod bin_format;
 mod csv_format;
 mod txt_format;
 mod error;
 
-const MAGIC: u32 = 0x5950424E;
+use std::io::{ Read, Write, Result};
+use strum_macros::Display;
+
+pub use bin_format::YPBankBinRecord;
+
+
+#[derive(Display, Debug)]
+enum TxType {
+    DEPOSIT,
+    TRANSFER,
+    WITHDRAW,
+}
+
+#[derive(Display, Debug)]
+enum Status {
+    SUCCESS,
+    FAILURE,
+    PENDING,
+}
+
 #[derive(Debug)]
-pub struct YPBankBinRecord {
-    marker: u32,
-    body: Vec<u8>,
+struct Record {
+    tx_id: u64,
+    tx_type: TxType,
+    from_user_id: u64,
+    to_user_id: u64,
+    amount: u64,
+    timestamp: u64,
+    status: Status,
+    description: String,
 }
 
-impl YPBankBinRecord {
-    pub fn from_read<R: std::io::Read>(r: &mut R) -> Result<Self, std::io::Error> {
-
+pub trait RecordParser {
+    fn from_read<R: Read>(r: &mut R) -> Result<Self>
+    where
+        Self: Sized,
+    {
         todo!()
     }
 
-    pub fn write_to<W: std::io::Write>(&mut self, writer: &mut W) -> Result<(), std::io::Error> {
+    fn write_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
         todo!()
     }
 }
+
+
