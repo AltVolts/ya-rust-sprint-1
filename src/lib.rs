@@ -1,4 +1,8 @@
 use std::io::{BufRead, BufReader, Read};
+mod bin_format;
+mod csv_format;
+mod txt_format;
+mod error;
 
 const MAGIC: u32 = 0x5950424E;
 #[derive(Debug)]
