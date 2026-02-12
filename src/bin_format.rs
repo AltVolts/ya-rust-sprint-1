@@ -1,20 +1,19 @@
-use std::io::{Read, Write, Result, BufReader, ErrorKind, Error, BufWriter, Cursor};
 use byteorder::{BigEndian, ReadBytesExt};
+use std::io::{BufReader, BufWriter, Cursor, Error, ErrorKind, Read, Result, Write};
 
-use crate::{RecordParser};
+use crate::RecordParser;
 
 //Постоянное значение 0x59 0x50 0x42 0x4E ('YPBN'), идентифицирующее заголовок записи.
 const MAGIC: u32 = 0x5950424E;
 
-const BODY_FIXED_PART_SIZE: usize =
-        8 +  // tx_id
+const BODY_FIXED_PART_SIZE: usize = 8 +  // tx_id
         1 +  // tx_type
         8 +  // from_user_id
         8 +  // to_user_id
         8 +  // amount (i64)
         8 +  // timestamp
         1 +  // status
-        4;  // desc_len
+        4; // desc_len
 
 struct RecordHeader {
     magic: u32,
@@ -78,7 +77,6 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
     let amount = cursor.read_u64::<BigEndian>()?;
     let timestamp = cursor.read_u64::<BigEndian>()?;
 
-
     let status = cursor.read_u8()?;
     let desc_len = cursor.read_u32::<BigEndian>()?;
 
@@ -87,16 +85,18 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
     if desc_len as usize > remaining_bytes {
         return Err(Error::new(
             ErrorKind::InvalidData,
-            format!("Not enough bytes for description: need {}, have {}",
-                    desc_len, remaining_bytes)
+            format!(
+                "Not enough bytes for description: need {}, have {}",
+                desc_len, remaining_bytes
+            ),
         ));
     }
 
     let mut description_bytes = vec![0u8; desc_len as usize];
     cursor.read_exact(&mut description_bytes)?;
 
-    let description = String::from_utf8(description_bytes)
-        .map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
+    let description =
+        String::from_utf8(description_bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
     Ok(BinRecord {
         tx_type,
@@ -122,8 +122,8 @@ impl RecordParser for YPBankBinRecord {
         Self: Sized,
     {
         let mut reader = BufReader::new(r);
-        let records  = parse_bin_records(&mut reader)?;
-        println!("{:#?}", records );
+        let records = parse_bin_records(&mut reader)?;
+        println!("{:#?}", records);
         Ok(YPBankBinRecord { records })
     }
 
@@ -164,29 +164,30 @@ fn write_record_to<W: Write>(w: &mut W, record: &BinRecord) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Cursor, Seek, SeekFrom};
+    use std::io::Cursor;
 
     #[test]
     fn test_write_bin_records() {
         let description = "Record number 1000".to_string();
         let desc_len = description.len() as u32;
-        let test_bin_records = vec![
-            BinRecord {
-                tx_type: 0,
-                status: 1,
-                desc_len,
-                tx_id: 1000000000000999,
-                from_user_id: 0,
-                to_user_id: 3314635390654657431,
-                amount: 100000,
-                timestamp: 1633096800000,
-                description: "Record number 1000".to_string(),
-            }
-        ];
-        println!("Full record size {:#?}", 8 + BODY_FIXED_PART_SIZE + desc_len as usize);
+        let test_bin_records = vec![BinRecord {
+            tx_type: 0,
+            status: 1,
+            desc_len,
+            tx_id: 1000000000000999,
+            from_user_id: 0,
+            to_user_id: 3314635390654657431,
+            amount: 100000,
+            timestamp: 1633096800000,
+            description: "Record number 1000".to_string(),
+        }];
+        println!(
+            "Full record size {:#?}",
+            8 + BODY_FIXED_PART_SIZE + desc_len as usize
+        );
         let mut buffer = Cursor::new(Vec::new());
         write_record_to(&mut buffer, &test_bin_records[0]).unwrap();
-        buffer.seek(SeekFrom::Start(0)).unwrap();
+        buffer.set_position(0);
 
         let result = parse_bin_records(&mut buffer).unwrap();
         assert_eq!(result.len(), test_bin_records.len());
@@ -203,7 +204,5 @@ mod tests {
         assert_eq!(parsed_record.status, expected_record.status);
         assert_eq!(parsed_record.desc_len, expected_record.desc_len as u32);
         assert_eq!(parsed_record.description, expected_record.description);
-
-
     }
 }
