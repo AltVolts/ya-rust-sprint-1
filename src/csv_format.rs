@@ -3,11 +3,11 @@ use csv::{QuoteStyle, ReaderBuilder, WriterBuilder};
 use std::io::{Read, Result, Write};
 
 #[derive(Debug, PartialEq)]
-pub struct YPBankCsvRecord {
+pub struct YPBankCsvRecords {
     pub records: Vec<TransactionRecord>,
 }
 
-impl RecordParser for YPBankCsvRecord {
+impl RecordParser for YPBankCsvRecords {
     fn from_read<R: Read>(r: &mut R) -> Result<Self>
     where
         Self: Sized,
@@ -20,18 +20,16 @@ impl RecordParser for YPBankCsvRecord {
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string()))?;
             records.push(record);
         }
-        Ok(YPBankCsvRecord { records })
+        Ok(YPBankCsvRecords { records })
     }
 
     fn write_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
-        // Отключаем автоматические кавычки
         let mut wtr = WriterBuilder::new()
             .has_headers(false)
             .quote_style(QuoteStyle::Never)
             .from_writer(writer);
 
-        // Заголовки без кавычек
-        wtr.write_record(&[
+        wtr.write_record([
             "TX_ID",
             "TX_TYPE",
             "FROM_USER_ID",
@@ -69,7 +67,7 @@ mod tests {
 
     #[test]
     fn test_read_write_csv_records() {
-        let mut test_csv_records = YPBankCsvRecord {
+        let mut test_csv_records = YPBankCsvRecords {
             records: vec![TransactionRecord {
                 tx_type: TxType::DEPOSIT,
                 status: Status::FAILURE,
@@ -86,7 +84,7 @@ mod tests {
         test_csv_records.write_to(&mut buffer).unwrap();
         buffer.set_position(0);
 
-        let buff_record = YPBankCsvRecord::from_read(&mut buffer).unwrap();
+        let buff_record = YPBankCsvRecords::from_read(&mut buffer).unwrap();
         assert_eq!(test_csv_records, buff_record);
     }
 }

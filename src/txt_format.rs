@@ -4,11 +4,11 @@ use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Result, Write};
 use std::str::FromStr;
 
 #[derive(Debug, PartialEq)]
-pub struct YPBankTxtRecord {
+pub struct YPBankTxtRecords {
     pub records: Vec<TransactionRecord>,
 }
 
-impl RecordParser for YPBankTxtRecord {
+impl RecordParser for YPBankTxtRecords {
     fn from_read<R: Read>(r: &mut R) -> Result<Self>
     where
         Self: Sized,
@@ -37,7 +37,7 @@ impl RecordParser for YPBankTxtRecord {
             current_map.clear();
         }
 
-        Ok(YPBankTxtRecord { records })
+        Ok(YPBankTxtRecords { records })
     }
 
     fn write_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
@@ -52,7 +52,7 @@ fn write_record_to<W: Write>(w: &mut W, record: &TransactionRecord) -> Result<()
     let record_number = record
         .description
         .split(' ')
-        .last()
+        .next_back()
         .and_then(|s| s.parse::<i32>().ok())
         .unwrap_or(0);
 
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_read_write_txt_records() {
-        let mut test_txt_records = YPBankTxtRecord {
+        let mut test_txt_records = YPBankTxtRecords {
             records: vec![TransactionRecord {
                 tx_type: TxType::DEPOSIT,
                 status: Status::FAILURE,
@@ -151,7 +151,7 @@ mod tests {
         test_txt_records.write_to(&mut buffer).unwrap();
         buffer.set_position(0);
 
-        let buff_record = YPBankTxtRecord::from_read(&mut buffer).unwrap();
+        let buff_record = YPBankTxtRecords::from_read(&mut buffer).unwrap();
         assert_eq!(test_txt_records, buff_record);
     }
 }

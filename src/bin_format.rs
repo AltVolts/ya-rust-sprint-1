@@ -1,7 +1,8 @@
 use byteorder::{BigEndian, ReadBytesExt};
 use std::io::{BufReader, BufWriter, Cursor, Error, ErrorKind, Read, Result, Write};
 
-use crate::RecordParser;
+use crate::error::ConversionError;
+use crate::{RecordParser, TransactionRecord};
 
 //Постоянное значение 0x59 0x50 0x42 0x4E ('YPBN'), идентифицирующее заголовок записи.
 const MAGIC: u32 = 0x5950424E;
@@ -22,15 +23,15 @@ struct BinHeader {
 
 #[derive(Debug, PartialEq)]
 pub struct BinRecord {
-    tx_type: u8,
-    status: u8,
-    desc_len: u32,
-    tx_id: u64,
-    from_user_id: u64,
-    to_user_id: u64,
-    amount: u64,
-    timestamp: u64,
-    description: String,
+    pub(crate) tx_type: u8,
+    pub(crate) status: u8,
+    pub(crate) desc_len: u32,
+    pub(crate) tx_id: u64,
+    pub(crate) from_user_id: u64,
+    pub(crate) to_user_id: u64,
+    pub(crate) amount: u64,
+    pub(crate) timestamp: u64,
+    pub(crate) description: String,
 }
 
 fn parse_bin_records<R: Read>(r: &mut R) -> Result<Vec<BinRecord>> {
@@ -113,11 +114,22 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct YPBankBinRecord {
+pub struct YPBankBinRecords {
     pub records: Vec<BinRecord>,
 }
 
-impl RecordParser for YPBankBinRecord {
+impl YPBankBinRecords {
+    pub fn into_transaction_records(
+        self,
+    ) -> std::result::Result<Vec<TransactionRecord>, ConversionError> {
+        self.records
+            .into_iter()
+            .map(TransactionRecord::try_from)
+            .collect()
+    }
+}
+
+impl RecordParser for YPBankBinRecords {
     fn from_read<R: Read>(r: &mut R) -> Result<Self>
     where
         Self: Sized,
@@ -125,12 +137,12 @@ impl RecordParser for YPBankBinRecord {
         let mut reader = BufReader::new(r);
         let records = parse_bin_records(&mut reader)?;
 
-        Ok(YPBankBinRecord { records })
+        Ok(YPBankBinRecords { records })
     }
 
     fn write_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
         for record in &self.records {
-            write_record_to(writer, &record)?;
+            write_record_to(writer, record)?;
         }
 
         Ok(())
@@ -172,7 +184,7 @@ mod tests {
         let description = "Record number 1000".to_string();
         let desc_len = description.len() as u32;
 
-        let mut test_bin_records = YPBankBinRecord {
+        let mut test_bin_records = YPBankBinRecords {
             records: vec![BinRecord {
                 tx_type: 0,
                 status: 1,
@@ -190,7 +202,7 @@ mod tests {
         test_bin_records.write_to(&mut buffer).unwrap();
         buffer.set_position(0);
 
-        let buff_record = YPBankBinRecord::from_read(&mut buffer).unwrap();
+        let buff_record = YPBankBinRecords::from_read(&mut buffer).unwrap();
         assert_eq!(test_bin_records, buff_record);
     }
 }
