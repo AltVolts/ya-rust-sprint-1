@@ -17,6 +17,7 @@ pub use csv_format::YPBankCsvRecords;
 pub use txt_format::YPBankTxtRecords;
 
 #[derive(Debug, Deserialize, EnumString, Display, PartialEq, Serialize)]
+#[allow(clippy::upper_case_acronyms)]
 enum TxType {
     DEPOSIT,
     TRANSFER,
@@ -24,6 +25,7 @@ enum TxType {
 }
 
 #[derive(Debug, Deserialize, EnumString, Display, PartialEq, Serialize)]
+#[allow(clippy::upper_case_acronyms)]
 enum Status {
     SUCCESS,
     FAILURE,
