@@ -3,44 +3,46 @@ mod csv_format;
 mod error;
 mod txt_format;
 
-use serde::Deserialize;
+use derive_more::Display;
+use serde::{Deserialize, Serialize};
 use std::io::{Read, Result, Write};
-use std::str::FromStr;
-use strum_macros::Display;
+
+use strum::EnumString;
 
 pub use bin_format::YPBankBinRecord;
 pub use csv_format::YPBankCsvRecord;
+pub use txt_format::YPBankTxtRecord;
 
-#[derive(Display, Debug, Deserialize)]
+#[derive(Debug, Deserialize, EnumString, Display, PartialEq, Serialize)]
 enum TxType {
     DEPOSIT,
     TRANSFER,
     WITHDRAWAL,
 }
 
-impl FromStr for TxType {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "DEPOSIT" => Ok(TxType::DEPOSIT),
-            "WITHDRAW" => Ok(TxType::TRANSFER),
-            "TRANSFER" => Ok(TxType::WITHDRAWAL),
-            _ => Err(format!("Неизвестный тип транзакции: {}", s)),
-        }
-    }
-}
-
-
-#[derive(Display, Debug, Deserialize)]
+#[derive(Debug, Deserialize, EnumString, Display, PartialEq, Serialize)]
 enum Status {
     SUCCESS,
     FAILURE,
     PENDING,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Display, Serialize)]
+#[display(
+    "TransactionRecord {{
+    tx_id: {tx_id},
+    tx_type: {tx_type},
+    from_user_id: {from_user_id},
+    to_user_id: {to_user_id},
+    amount: {amount},
+    timestamp: {timestamp},
+    status: {status},
+    description: {description},
+}}"
+)]
 #[serde(rename_all = "UPPERCASE")]
-struct TransactionRecord {
+#[derive(PartialEq)]
+pub struct TransactionRecord {
     tx_id: u64,
     tx_type: TxType,
     from_user_id: u64,

@@ -15,13 +15,13 @@ const BODY_FIXED_PART_SIZE: usize = 8 +  // tx_id
         1 +  // status
         4; // desc_len
 
-struct RecordHeader {
+struct BinHeader {
     magic: u32,
     record_size: u32,
 }
 
-#[derive(Debug)]
-struct BinRecord {
+#[derive(Debug, PartialEq)]
+pub struct BinRecord {
     tx_type: u8,
     status: u8,
     desc_len: u32,
@@ -36,7 +36,7 @@ struct BinRecord {
 fn parse_bin_records<R: Read>(r: &mut R) -> Result<Vec<BinRecord>> {
     let mut records = Vec::new();
     loop {
-        let header = match read_record_header(r) {
+        let header = match read_bin_header(r) {
             Ok(header) => header,
             Err(e) if e.kind() == ErrorKind::UnexpectedEof => break,
             Err(e) => return Err(e),
@@ -55,14 +55,15 @@ fn parse_bin_records<R: Read>(r: &mut R) -> Result<Vec<BinRecord>> {
         let record = parse_record_from_bytes(buffer.as_slice())?;
         records.push(record);
     }
+
     Ok(records)
 }
 
-fn read_record_header<R: Read>(r: &mut R) -> Result<RecordHeader> {
+fn read_bin_header<R: Read>(r: &mut R) -> Result<BinHeader> {
     let magic = r.read_u32::<BigEndian>()?;
     let record_size = r.read_u32::<BigEndian>()?;
 
-    Ok(RecordHeader { magic, record_size })
+    Ok(BinHeader { magic, record_size })
 }
 
 fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
@@ -111,9 +112,9 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
     })
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct YPBankBinRecord {
-    records: Vec<BinRecord>,
+    pub records: Vec<BinRecord>,
 }
 
 impl RecordParser for YPBankBinRecord {
@@ -123,7 +124,7 @@ impl RecordParser for YPBankBinRecord {
     {
         let mut reader = BufReader::new(r);
         let records = parse_bin_records(&mut reader)?;
-        println!("{:#?}", records);
+
         Ok(YPBankBinRecord { records })
     }
 
@@ -156,8 +157,8 @@ fn write_record_to<W: Write>(w: &mut W, record: &BinRecord) -> Result<()> {
     buffer.write_all(&[record.status])?;
     buffer.write_all(&record.desc_len.to_be_bytes())?;
     buffer.write_all(record.description.as_bytes())?;
-
     buffer.flush()?;
+
     Ok(())
 }
 
@@ -167,42 +168,29 @@ mod tests {
     use std::io::Cursor;
 
     #[test]
-    fn test_write_bin_records() {
+    fn test_read_write_bin_records() {
         let description = "Record number 1000".to_string();
         let desc_len = description.len() as u32;
-        let test_bin_records = vec![BinRecord {
-            tx_type: 0,
-            status: 1,
-            desc_len,
-            tx_id: 1000000000000999,
-            from_user_id: 0,
-            to_user_id: 3314635390654657431,
-            amount: 100000,
-            timestamp: 1633096800000,
-            description: "Record number 1000".to_string(),
-        }];
-        println!(
-            "Full record size {:#?}",
-            8 + BODY_FIXED_PART_SIZE + desc_len as usize
-        );
+
+        let mut test_bin_records = YPBankBinRecord {
+            records: vec![BinRecord {
+                tx_type: 0,
+                status: 1,
+                desc_len,
+                tx_id: 1000000000000999,
+                from_user_id: 0,
+                to_user_id: 3314635390654657431,
+                amount: 100000,
+                timestamp: 1633096800000,
+                description: "Record number 1000".to_string(),
+            }],
+        };
+
         let mut buffer = Cursor::new(Vec::new());
-        write_record_to(&mut buffer, &test_bin_records[0]).unwrap();
+        test_bin_records.write_to(&mut buffer).unwrap();
         buffer.set_position(0);
 
-        let result = parse_bin_records(&mut buffer).unwrap();
-        assert_eq!(result.len(), test_bin_records.len());
-
-        let parsed_record = &result[0];
-        let expected_record = &test_bin_records[0];
-
-        assert_eq!(parsed_record.tx_id, expected_record.tx_id);
-        assert_eq!(parsed_record.tx_type, expected_record.tx_type);
-        assert_eq!(parsed_record.from_user_id, expected_record.from_user_id);
-        assert_eq!(parsed_record.to_user_id, expected_record.to_user_id);
-        assert_eq!(parsed_record.amount, expected_record.amount);
-        assert_eq!(parsed_record.timestamp, expected_record.timestamp);
-        assert_eq!(parsed_record.status, expected_record.status);
-        assert_eq!(parsed_record.desc_len, expected_record.desc_len as u32);
-        assert_eq!(parsed_record.description, expected_record.description);
+        let buff_record = YPBankBinRecord::from_read(&mut buffer).unwrap();
+        assert_eq!(test_bin_records, buff_record);
     }
 }
