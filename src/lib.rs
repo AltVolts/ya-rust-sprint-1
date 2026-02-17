@@ -48,7 +48,7 @@ enum Status {
 #[serde(rename_all = "UPPERCASE")]
 #[derive(PartialEq)]
 pub struct TransactionRecord {
-    tx_id: u64,
+    pub tx_id: u64,
     tx_type: TxType,
     from_user_id: u64,
     to_user_id: u64,

@@ -181,6 +181,8 @@ fn parse_record_from_bytes(bytes: &[u8]) -> std::io::Result<TransactionRecord> {
     let description =
         String::from_utf8(description_bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
+    let description = description.trim_matches('"').to_string();
+
     Ok(TransactionRecord {
         tx_type,
         status,

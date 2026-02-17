@@ -7,7 +7,7 @@ use ya_rust_sprint_1::{RecordParser, YPBankBinRecords, YPBankCsvRecords, YPBankT
 enum FileFormat {
     Csv,
     Txt,
-    Bin,
+    Binary,
 }
 
 #[derive(Parser)]
@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let records = match cli.input_format {
         FileFormat::Csv => YPBankCsvRecords::from_read(&mut input)?.records,
         FileFormat::Txt => YPBankTxtRecords::from_read(&mut input)?.records,
-        FileFormat::Bin => YPBankBinRecords::from_read(&mut input)?.records,
+        FileFormat::Binary => YPBankBinRecords::from_read(&mut input)?.records,
     };
 
     match cli.output_format {
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         FileFormat::Txt => {
             YPBankTxtRecords::new(records).write_to(&mut stdout())?;
         }
-        FileFormat::Bin => {
+        FileFormat::Binary => {
             YPBankBinRecords::new(records).write_to(&mut stdout())?;
         }
     }

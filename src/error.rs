@@ -19,8 +19,10 @@ impl From<BinToTransError> for std::io::Error {
 
 #[derive(Error, Debug)]
 pub(crate) enum TransToBinError {
+    #[allow(dead_code)]
     #[error("Invalid transaction type: {0:?}")]
     UnsupportedTxType(TxType),
+    #[allow(dead_code)]
     #[error("Invalid status value: {0:?}")]
     UnsupportedStatus(Status),
 }
