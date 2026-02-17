@@ -1,28 +1,32 @@
-use std::fmt;
+use crate::{Status, TxType};
+use thiserror::Error;
 
-#[derive(Debug)]
-pub enum ConversionError {
+#[derive(Error, Debug)]
+pub(crate) enum BinToTransError {
+    #[error("Invalid transaction type value: {0}")]
     InvalidTxType(u8),
+    #[error("Invalid status value: {0}")]
     InvalidStatus(u8),
+    #[error("Description length mismatch: expected {expected}, actual {actual}")]
     DescriptionLengthMismatch { expected: u32, actual: usize },
 }
 
-impl fmt::Display for ConversionError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ConversionError::InvalidTxType(val) => {
-                write!(f, "Invalid transaction type value: {}", val)
-            }
-            ConversionError::InvalidStatus(val) => write!(f, "Invalid status value: {}", val),
-            ConversionError::DescriptionLengthMismatch { expected, actual } => {
-                write!(
-                    f,
-                    "Description length mismatch: expected {}, actual {}",
-                    expected, actual
-                )
-            }
-        }
+impl From<BinToTransError> for std::io::Error {
+    fn from(e: BinToTransError) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, e)
     }
 }
 
-impl std::error::Error for ConversionError {}
+#[derive(Error, Debug)]
+pub(crate) enum TransToBinError {
+    #[error("Invalid transaction type: {0:?}")]
+    UnsupportedTxType(TxType),
+    #[error("Invalid status value: {0:?}")]
+    UnsupportedStatus(Status),
+}
+
+impl From<TransToBinError> for std::io::Error {
+    fn from(e: TransToBinError) -> Self {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, e)
+    }
+}

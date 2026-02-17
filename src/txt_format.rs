@@ -3,9 +3,20 @@ use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Error, ErrorKind, Read, Result, Write};
 use std::str::FromStr;
 
+/// Коллекция банковских записей, полученная из TXT-файла формата YP Bank.
+///
+/// Хранит вектор транзакций [`TransactionRecord`](crate::TransactionRecord).
+/// Используется вместе с трейтом [`RecordParser`](crate::RecordParser) для чтения и записи.
 #[derive(Debug, PartialEq)]
 pub struct YPBankTxtRecords {
+    /// Вектор записей транзакций, извлечённых из TXT.
     pub records: Vec<TransactionRecord>,
+}
+
+impl YPBankTxtRecords {
+    pub fn new(records: Vec<TransactionRecord>) -> Self {
+        YPBankTxtRecords { records }
+    }
 }
 
 impl RecordParser for YPBankTxtRecords {

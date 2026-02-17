@@ -1,12 +1,13 @@
 use byteorder::{BigEndian, ReadBytesExt};
-use std::io::{BufReader, BufWriter, Cursor, Error, ErrorKind, Read, Result, Write};
+use std::io::{BufReader, BufWriter, Cursor, Error, ErrorKind, Read, Write};
 
-use crate::error::ConversionError;
-use crate::{RecordParser, TransactionRecord};
+use crate::error::{BinToTransError, TransToBinError};
+use crate::{RecordParser, Status, TransactionRecord, TxType};
 
-//Постоянное значение 0x59 0x50 0x42 0x4E ('YPBN'), идентифицирующее заголовок записи.
+// Постоянное значение 0x59 0x50 0x42 0x4E ('YPBN'), идентифицирующее заголовок записи.
 const MAGIC: u32 = 0x5950424E;
 
+// Размер фиксированной части записи в бинарном формате
 const BODY_FIXED_PART_SIZE: usize = 8 +  // tx_id
         1 +  // tx_type
         8 +  // from_user_id
@@ -16,13 +17,15 @@ const BODY_FIXED_PART_SIZE: usize = 8 +  // tx_id
         1 +  // status
         4; // desc_len
 
+// Структура бинарного заголовка
 struct BinHeader {
     magic: u32,
     record_size: u32,
 }
 
+// Структура бинарного тела записи
 #[derive(Debug, PartialEq)]
-pub struct BinRecord {
+pub(crate) struct BinRecord {
     pub(crate) tx_type: u8,
     pub(crate) status: u8,
     pub(crate) desc_len: u32,
@@ -34,7 +37,74 @@ pub struct BinRecord {
     pub(crate) description: String,
 }
 
-fn parse_bin_records<R: Read>(r: &mut R) -> Result<Vec<BinRecord>> {
+impl TryFrom<&TransactionRecord> for BinRecord {
+    type Error = TransToBinError;
+    fn try_from(record: &TransactionRecord) -> Result<Self, Self::Error> {
+        let tx_type = match record.tx_type {
+            TxType::DEPOSIT => 0,
+            TxType::TRANSFER => 1,
+            TxType::WITHDRAWAL => 2,
+        };
+
+        let status = match record.status {
+            Status::SUCCESS => 0,
+            Status::FAILURE => 1,
+            Status::PENDING => 2,
+        };
+
+        Ok(BinRecord {
+            tx_type,
+            status,
+            desc_len: record.description.len() as u32,
+            tx_id: record.tx_id,
+            from_user_id: record.from_user_id,
+            to_user_id: record.to_user_id,
+            amount: record.amount,
+            timestamp: record.timestamp,
+            description: record.description.clone(),
+        })
+    }
+}
+
+/// Коллекция банковских записей, полученная из BIN-файла формата YP Bank.
+///
+/// Хранит вектор транзакций [`TransactionRecord`](crate::TransactionRecord).
+/// Используется вместе с трейтом [`RecordParser`](crate::RecordParser) для чтения и записи.
+#[derive(Debug, PartialEq)]
+pub struct YPBankBinRecords {
+    /// Вектор записей транзакций, извлечённых из BIN.
+    pub records: Vec<TransactionRecord>,
+}
+
+impl YPBankBinRecords {
+    pub fn new(records: Vec<TransactionRecord>) -> Self {
+        YPBankBinRecords { records }
+    }
+}
+
+impl RecordParser for YPBankBinRecords {
+    fn from_read<R: Read>(r: &mut R) -> std::io::Result<Self>
+    where
+        Self: Sized,
+    {
+        let mut reader = BufReader::new(r);
+        let records = parse_bin_records(&mut reader)?;
+
+        Ok(YPBankBinRecords { records })
+    }
+
+    fn write_to<W: Write>(&mut self, writer: &mut W) -> std::io::Result<()> {
+        for record in self.records.iter() {
+            let bin_record = BinRecord::try_from(record)?;
+            write_record_to(writer, &bin_record)?;
+        }
+
+        Ok(())
+    }
+}
+
+// конвертировать вектор записей бинарного вида в вектор записей TransactionRecord
+fn parse_bin_records<R: Read>(r: &mut R) -> std::io::Result<Vec<TransactionRecord>> {
     let mut records = Vec::new();
     loop {
         let header = match read_bin_header(r) {
@@ -60,18 +130,23 @@ fn parse_bin_records<R: Read>(r: &mut R) -> Result<Vec<BinRecord>> {
     Ok(records)
 }
 
-fn read_bin_header<R: Read>(r: &mut R) -> Result<BinHeader> {
+fn read_bin_header<R: Read>(r: &mut R) -> std::io::Result<BinHeader> {
     let magic = r.read_u32::<BigEndian>()?;
     let record_size = r.read_u32::<BigEndian>()?;
 
     Ok(BinHeader { magic, record_size })
 }
 
-fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
+fn parse_record_from_bytes(bytes: &[u8]) -> std::io::Result<TransactionRecord> {
     let mut cursor = Cursor::new(bytes);
 
     let tx_id = cursor.read_u64::<BigEndian>()?;
-    let tx_type = cursor.read_u8()?;
+    let tx_type = match cursor.read_u8()? {
+        0 => TxType::DEPOSIT,
+        1 => TxType::TRANSFER,
+        2 => TxType::WITHDRAWAL,
+        other => return Err(BinToTransError::InvalidTxType(other).into()),
+    };
 
     let from_user_id = cursor.read_u64::<BigEndian>()?;
     let to_user_id = cursor.read_u64::<BigEndian>()?;
@@ -79,7 +154,13 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
     let amount = cursor.read_u64::<BigEndian>()?;
     let timestamp = cursor.read_u64::<BigEndian>()?;
 
-    let status = cursor.read_u8()?;
+    let status = match cursor.read_u8()? {
+        0 => Status::SUCCESS,
+        1 => Status::FAILURE,
+        2 => Status::PENDING,
+        other => return Err(Error::from(BinToTransError::InvalidStatus(other))),
+    };
+
     let desc_len = cursor.read_u32::<BigEndian>()?;
 
     // Проверяем, что осталось достаточно байт для описания
@@ -100,10 +181,9 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
     let description =
         String::from_utf8(description_bytes).map_err(|e| Error::new(ErrorKind::InvalidData, e))?;
 
-    Ok(BinRecord {
+    Ok(TransactionRecord {
         tx_type,
         status,
-        desc_len,
         tx_id,
         from_user_id,
         to_user_id,
@@ -113,53 +193,14 @@ fn parse_record_from_bytes(bytes: &[u8]) -> Result<BinRecord> {
     })
 }
 
-#[derive(Debug, PartialEq)]
-pub struct YPBankBinRecords {
-    pub records: Vec<BinRecord>,
-}
-
-impl YPBankBinRecords {
-    pub fn into_transaction_records(
-        self,
-    ) -> std::result::Result<Vec<TransactionRecord>, ConversionError> {
-        self.records
-            .into_iter()
-            .map(TransactionRecord::try_from)
-            .collect()
-    }
-}
-
-impl RecordParser for YPBankBinRecords {
-    fn from_read<R: Read>(r: &mut R) -> Result<Self>
-    where
-        Self: Sized,
-    {
-        let mut reader = BufReader::new(r);
-        let records = parse_bin_records(&mut reader)?;
-
-        Ok(YPBankBinRecords { records })
-    }
-
-    fn write_to<W: Write>(&mut self, writer: &mut W) -> Result<()> {
-        for record in &self.records {
-            write_record_to(writer, record)?;
-        }
-
-        Ok(())
-    }
-}
-
-fn write_record_to<W: Write>(w: &mut W, record: &BinRecord) -> Result<()> {
+fn write_record_to<W: Write>(w: &mut W, record: &BinRecord) -> std::io::Result<()> {
     let mut buffer = BufWriter::new(w);
 
-    // Рассчитываем размер тела записи
     let body_size = BODY_FIXED_PART_SIZE + record.desc_len as usize;
 
-    // Записываем заголовок
     buffer.write_all(&MAGIC.to_be_bytes())?;
     buffer.write_all(&(body_size as u32).to_be_bytes())?;
 
-    // Записываем тело записи
     buffer.write_all(&record.tx_id.to_be_bytes())?;
     buffer.write_all(&[record.tx_type])?;
     buffer.write_all(&record.from_user_id.to_be_bytes())?;
@@ -181,14 +222,10 @@ mod tests {
 
     #[test]
     fn test_read_write_bin_records() {
-        let description = "Record number 1000".to_string();
-        let desc_len = description.len() as u32;
-
         let mut test_bin_records = YPBankBinRecords {
-            records: vec![BinRecord {
-                tx_type: 0,
-                status: 1,
-                desc_len,
+            records: vec![TransactionRecord {
+                tx_type: TxType::DEPOSIT,
+                status: Status::FAILURE,
                 tx_id: 1000000000000999,
                 from_user_id: 0,
                 to_user_id: 3314635390654657431,

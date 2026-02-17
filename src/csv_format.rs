@@ -2,9 +2,20 @@ use crate::{RecordParser, TransactionRecord};
 use csv::{QuoteStyle, ReaderBuilder, WriterBuilder};
 use std::io::{Read, Result, Write};
 
+/// Коллекция банковских записей, полученная из CSV-файла формата YP Bank.
+///
+/// Хранит вектор транзакций [`TransactionRecord`](crate::TransactionRecord).
+/// Используется вместе с трейтом [`RecordParser`](crate::RecordParser) для чтения и записи.
 #[derive(Debug, PartialEq)]
 pub struct YPBankCsvRecords {
+    /// Вектор записей транзакций, извлечённых из CSV.
     pub records: Vec<TransactionRecord>,
+}
+
+impl YPBankCsvRecords {
+    pub fn new(records: Vec<TransactionRecord>) -> Self {
+        YPBankCsvRecords { records }
+    }
 }
 
 impl RecordParser for YPBankCsvRecords {

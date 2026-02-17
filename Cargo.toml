@@ -11,3 +11,4 @@ serde = { version = "1.0.228", features = ["derive"] }
 strum = { version = "0.27.2", features = ["derive"] }
 derive_more = { version = "2.1.1", features = ["display"] }
 clap = { version = "4.5.58", features = ["derive"] }
+thiserror = "2.0.18"

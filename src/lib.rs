@@ -6,12 +6,11 @@ mod txt_format;
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Result, Write};
-
 use strum::EnumString;
 
-use crate::error::ConversionError;
-
 use crate::bin_format::BinRecord;
+use crate::error::BinToTransError;
+
 pub use bin_format::YPBankBinRecords;
 pub use csv_format::YPBankCsvRecords;
 pub use txt_format::YPBankTxtRecords;
@@ -32,18 +31,19 @@ enum Status {
     PENDING,
 }
 
+/// Структура формата YP Bank для банковских записей о транзакциях
 #[derive(Debug, Deserialize, Display, Serialize)]
 #[display(
     "TransactionRecord {{
-    tx_id: {tx_id},
-    tx_type: {tx_type},
-    from_user_id: {from_user_id},
-    to_user_id: {to_user_id},
-    amount: {amount},
-    timestamp: {timestamp},
-    status: {status},
-    description: {description},
-}}"
+        tx_id: {tx_id},
+        tx_type: {tx_type},
+        from_user_id: {from_user_id},
+        to_user_id: {to_user_id},
+        amount: {amount},
+        timestamp: {timestamp},
+        status: {status},
+        description: {description},
+    }}"
 )]
 #[serde(rename_all = "UPPERCASE")]
 #[derive(PartialEq)]
@@ -59,25 +59,25 @@ pub struct TransactionRecord {
 }
 
 impl TryFrom<BinRecord> for TransactionRecord {
-    type Error = ConversionError;
+    type Error = BinToTransError;
 
     fn try_from(record: BinRecord) -> std::result::Result<Self, Self::Error> {
         let tx_type = match record.tx_type {
             0 => TxType::DEPOSIT,
             1 => TxType::TRANSFER,
             2 => TxType::WITHDRAWAL,
-            other => return Err(ConversionError::InvalidTxType(other)),
+            other => return Err(BinToTransError::InvalidTxType(other)),
         };
 
         let status = match record.status {
             0 => Status::SUCCESS,
             1 => Status::FAILURE,
             2 => Status::PENDING,
-            other => return Err(ConversionError::InvalidStatus(other)),
+            other => return Err(BinToTransError::InvalidStatus(other)),
         };
 
         if (record.description.len() as u32) != record.desc_len {
-            return Err(ConversionError::DescriptionLengthMismatch {
+            return Err(BinToTransError::DescriptionLengthMismatch {
                 expected: record.desc_len,
                 actual: record.description.len(),
             });
@@ -96,7 +96,9 @@ impl TryFrom<BinRecord> for TransactionRecord {
     }
 }
 
+/// Трейт чтения и записи из различных форматов
 pub trait RecordParser {
+    /// Парсинг данные из любого источника, реализующего трейт Read
     fn from_read<R: Read>(_r: &mut R) -> Result<Self>
     where
         Self: Sized,
@@ -104,7 +106,30 @@ pub trait RecordParser {
         todo!()
     }
 
+    /// Запись данные в любой источник, реализующий трейт Write
     fn write_to<W: Write>(&mut self, _writer: &mut W) -> Result<()> {
         todo!()
     }
 }
+
+// Макрос реализации трейта From для взаимной конвертируемости YPBankBinRecords, YPBankCsvRecords, YPBankTxtRecords
+macro_rules! impl_from_for_records {
+    ( $( ($from:ident, $to:ident) ),* $(,)? ) => {
+        $(
+            impl From<$from> for $to {
+                fn from(src: $from) -> Self {
+                    $to { records: src.records }
+                }
+            }
+        )*
+    };
+}
+
+impl_from_for_records!(
+    (YPBankBinRecords, YPBankCsvRecords),
+    (YPBankBinRecords, YPBankTxtRecords),
+    (YPBankCsvRecords, YPBankBinRecords),
+    (YPBankCsvRecords, YPBankTxtRecords),
+    (YPBankTxtRecords, YPBankBinRecords),
+    (YPBankTxtRecords, YPBankCsvRecords)
+);

@@ -1,10 +1,10 @@
-use std::fs::File;
 use clap::{Parser, ValueEnum};
-
+use std::fs::File;
+use std::io::stdout;
 use ya_rust_sprint_1::{RecordParser, YPBankBinRecords, YPBankCsvRecords, YPBankTxtRecords};
 
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum InputFormat {
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+enum FileFormat {
     Csv,
     Txt,
     Bin,
@@ -17,28 +17,33 @@ struct Cli {
     input: String,
 
     #[arg(short = 'f', long = "input-format", value_enum)]
-    input_format: InputFormat,
+    input_format: FileFormat,
 
-    // #[arg(short = 'o', long = "output-format")]
-    // output_format: String,
+    #[arg(short = 'o', long = "output-format")]
+    output_format: FileFormat,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    // println!("Входной файл: {}", cli.input);
-    // println!("Формат входного файла: {}", cli.input_format);
-    // println!("Формат выходного файла: {}", cli.output_format);
+    let mut input = File::open(cli.input)?;
 
-    let mut input = File::open(cli.input).unwrap();
+    let records = match cli.input_format {
+        FileFormat::Csv => YPBankCsvRecords::from_read(&mut input)?.records,
+        FileFormat::Txt => YPBankTxtRecords::from_read(&mut input)?.records,
+        FileFormat::Bin => YPBankBinRecords::from_read(&mut input)?.records,
+    };
 
-    match cli.input_format {
-        InputFormat::Csv => {
-            let records = YPBankCsvRecords::from_read(&mut input)?;
-            println!("{:#?}", records)
+    match cli.output_format {
+        FileFormat::Csv => {
+            YPBankCsvRecords::new(records).write_to(&mut stdout())?;
         }
-        _ => {}
+        FileFormat::Txt => {
+            YPBankTxtRecords::new(records).write_to(&mut stdout())?;
+        }
+        FileFormat::Bin => {
+            YPBankBinRecords::new(records).write_to(&mut stdout())?;
+        }
     }
-
     Ok(())
 }
