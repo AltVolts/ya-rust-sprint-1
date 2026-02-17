@@ -4,3 +4,4 @@
 **.csv
 **.bin
 **.md
+/.pre-commit-config.yaml
