@@ -103,7 +103,6 @@ impl RecordParser for YPBankBinRecords {
     }
 }
 
-// конвертировать вектор записей бинарного вида в вектор записей TransactionRecord
 fn parse_bin_records<R: Read>(r: &mut R) -> std::io::Result<Vec<TransactionRecord>> {
     let mut records = Vec::new();
     loop {
