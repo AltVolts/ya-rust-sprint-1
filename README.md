@@ -1,6 +1,6 @@
 # Проектная работа модуля 1. Чтение, парсинг и анализ данных в Rust
 
-## Проект содержит из 3 основных крейтов:
+## Проект состоит из 3 основных крейтов:
 1. Библиотечный "Parser", реализующий ядро парсинга записей банковских транзакций 
    и их сериализация в разные форматы данных;
 2. Бинарный "CLI Converter" - консольное приложение, использующее функциональность парсеров из lib-крейта;
@@ -16,5 +16,5 @@
 
 ## Примеры использования:
 1. "CLI Converter": ```bash cargo run -- --input ./test_files/records_example.csv --input-format csv --output-format txt > output_file.txt```
-   > **Примечание**: если при копировании команды из этого файла возникает ошибка "error: unexpected argument '\&gt;' found;", попробуйте вставить команду через Shift+Insert или скопировать её из исходного текста (не из предпросмотра).
+   > **Примечание**: если при запуске команды напрямую из README.md возникает ошибка "error: unexpected argument '\&gt;' found;", попробуйте скопировать и вставить команду из исходного текста.
 2. "CLI Comparer": ```cargo run --bin comparer -- --file1 ./test_files/records_example.bin --format1 binary --file2 ./test_files/records_example.txt --format2 txt```

@@ -5,3 +5,4 @@
 **.bin
 **.md
 /.pre-commit-config.yaml
+!/test_files/**
