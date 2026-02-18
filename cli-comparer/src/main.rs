@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::fs::File;
-use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use parser::{
     RecordParser, TransactionRecord, YPBankBinRecords, YPBankCsvRecords, YPBankTxtRecords,
 };
+use std::collections::HashMap;
+use std::fs::File;
+use std::path::{Path, PathBuf};
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 enum FileFormat {

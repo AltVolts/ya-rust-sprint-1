@@ -1,6 +1,6 @@
+use parser::{RecordParser, YPBankBinRecords};
 use std::fs::File;
 use std::io::BufReader;
-use parser::{RecordParser, YPBankBinRecords};
 
 const TEST_FILE: &str = "../test_files/records_example.bin";
 const WRITE_TEST_FILE: &str = "./write_test_files/records_example.bin";

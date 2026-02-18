@@ -1,8 +1,8 @@
-use std::fs::File;
-use std::io::stdout;
 use anyhow::Context;
 use clap::{Parser, ValueEnum};
 use parser::{RecordParser, YPBankBinRecords, YPBankCsvRecords, YPBankTxtRecords};
+use std::fs::File;
+use std::io::stdout;
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 enum FileFormat {
