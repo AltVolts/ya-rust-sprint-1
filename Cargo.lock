@@ -53,6 +53,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.101"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
+
+[[package]]
 name = "byteorder"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -97,6 +103,24 @@ name = "clap_lex"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a822ea5bc7590f9d40f1ba12c0dc3c2760f3482c6984db1573ad11031420831"
+
+[[package]]
+name = "cli-comparer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "parser",
+]
+
+[[package]]
+name = "cli-converter"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "parser",
+]
 
 [[package]]
 name = "colorchoice"
@@ -186,6 +210,18 @@ name = "once_cell_polyfill"
 version = "1.70.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
+
+[[package]]
+name = "parser"
+version = "0.1.0"
+dependencies = [
+ "byteorder",
+ "csv",
+ "derive_more",
+ "serde",
+ "strum",
+ "thiserror",
+]
 
 [[package]]
 name = "proc-macro2"
@@ -351,17 +387,4 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
 dependencies = [
  "windows-link",
-]
-
-[[package]]
-name = "ya-rust-sprint-1"
-version = "0.1.0"
-dependencies = [
- "byteorder",
- "clap",
- "csv",
- "derive_more",
- "serde",
- "strum",
- "thiserror",
 ]

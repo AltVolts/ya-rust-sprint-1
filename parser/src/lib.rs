@@ -48,6 +48,7 @@ enum Status {
 #[serde(rename_all = "UPPERCASE")]
 #[derive(PartialEq)]
 pub struct TransactionRecord {
+    /// Уникальный id совершенной транзакции
     pub tx_id: u64,
     tx_type: TxType,
     from_user_id: u64,
@@ -106,7 +107,7 @@ pub trait RecordParser {
         todo!()
     }
 
-    /// Запись данные в любой источник, реализующий трейт Write
+    /// Запись данных в любой источник, реализующий трейт Write
     fn write_to<W: Write>(&mut self, _writer: &mut W) -> Result<()> {
         todo!()
     }

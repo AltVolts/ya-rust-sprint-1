@@ -84,14 +84,16 @@ fn write_record_to<W: Write>(w: &mut W, record: &TransactionRecord) -> Result<()
 }
 
 fn add_line_to_map(line: String, map: &mut HashMap<String, String>) -> Result<()> {
-    let parts: Vec<&str> = line.split(": ").collect();
-    if parts.len() != 2 {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            format!("Неправильный формат строки {}", line),
-        ));
-    }
-    let (k, v) = (parts[0], parts[1]);
+    let (k, v) = match line.split_once(": ") {
+        Some((k, v)) => (k, v),
+        None => {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                format!("Неправильный формат строки: '{}'", line),
+            ));
+        }
+    };
+
     let v_clean = v.replace('"', "");
 
     map.insert(k.to_string(), v_clean.to_string());
@@ -121,7 +123,7 @@ fn hashmap_to_record(map: &mut HashMap<String, String>) -> Result<TransactionRec
         s.parse::<T>().map_err(|e| {
             Error::new(
                 ErrorKind::InvalidData,
-                format!("Ошибка парсинга {}: {}", key, e),
+                format!("Ошибка парсинга '{}': {}", key, e),
             )
         })
     }
@@ -164,5 +166,80 @@ mod tests {
 
         let buff_record = YPBankTxtRecords::from_read(&mut buffer).unwrap();
         assert_eq!(test_txt_records, buff_record);
+    }
+
+    #[test]
+    fn test_missing_colon() {
+        let data = "\
+# Record 1 DEPOSIT
+TX_ID: 123
+TX_TYPE DEPOSIT
+FROM_USER_ID: 0
+TO_USER_ID: 456
+AMOUNT: 1000
+TIMESTAMP: 1633036860
+STATUS: SUCCESS
+DESCRIPTION: \"test\"
+
+";
+        let mut cursor = Cursor::new(data);
+        let result = YPBankTxtRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Неправильный формат строки"));
+    }
+
+    #[test]
+    fn test_missing_key() {
+        let data = "\
+# Record 1 DEPOSIT
+TX_ID: 123
+FROM_USER_ID: 0
+TO_USER_ID: 456
+AMOUNT: 1000
+TIMESTAMP: 1633036860
+STATUS: SUCCESS
+DESCRIPTION: \"test\"
+
+";
+        // Отсутствует TX_TYPE
+        let mut cursor = Cursor::new(data);
+        let result = YPBankTxtRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Отсутствует ключ: TX_TYPE"));
+    }
+
+    #[test]
+    fn test_invalid_value_parse() {
+        let data = "\
+# Record 1 DEPOSIT
+TX_ID: 123
+TX_TYPE: 5
+FROM_USER_ID: 0
+TO_USER_ID: 456
+AMOUNT: 1000
+TIMESTAMP: 1633036860
+STATUS: SUCCESS
+DESCRIPTION: \"test\"
+
+";
+        let mut cursor = Cursor::new(data);
+        let result = YPBankTxtRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(err.to_string().contains("Ошибка парсинга 'TX_TYPE'"));
+    }
+
+    #[test]
+    fn test_empty_file() {
+        let data = "";
+        let mut cursor = Cursor::new(data);
+        let result = YPBankTxtRecords::from_read(&mut cursor);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().records.len(), 0);
     }
 }

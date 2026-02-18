@@ -98,4 +98,48 @@ mod tests {
         let buff_record = YPBankCsvRecords::from_read(&mut buffer).unwrap();
         assert_eq!(test_csv_records, buff_record);
     }
+
+    #[test]
+    fn test_invalid_tx_type_value() {
+        let data = "\
+TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+1000000000000000,deposit,0,9223372036854775807,100,1633036860,SUCCESS,\"Record number 1\"
+";
+        // TX_TYPE = "deposit" (нижний регистр) – не соответствует ожидаемому перечислению
+        let mut cursor = Cursor::new(data);
+        let result = YPBankCsvRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+        // Сообщение об ошибке будет содержать информацию о невозможности десериализации
+        assert!(err.to_string().contains("TX_TYPE") || err.to_string().contains("deposit"));
+    }
+
+    #[test]
+    fn test_missing_field() {
+        let data = "\
+TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+1000000000000000,DEPOSIT,0,9223372036854775807,100,1633036860,SUCCESS
+";
+        // Не хватает поля DESCRIPTION
+        let mut cursor = Cursor::new(data);
+        let result = YPBankCsvRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn test_invalid_number_format() {
+        let data = "\
+TX_ID,TX_TYPE,FROM_USER_ID,TO_USER_ID,AMOUNT,TIMESTAMP,STATUS,DESCRIPTION
+not_a_number,DEPOSIT,0,9223372036854775807,100,1633036860,SUCCESS,\"test\"
+";
+        // TX_ID не является числом
+        let mut cursor = Cursor::new(data);
+        let result = YPBankCsvRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
 }

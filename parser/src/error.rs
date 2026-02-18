@@ -5,7 +5,7 @@ use thiserror::Error;
 pub(crate) enum BinToTransError {
     #[error("Invalid transaction type value: {0}")]
     InvalidTxType(u8),
-    #[error("Invalid status value: {0}")]
+    #[error("Invalid transaction status value: {0}")]
     InvalidStatus(u8),
     #[error("Description length mismatch: expected {expected}, actual {actual}")]
     DescriptionLengthMismatch { expected: u32, actual: usize },

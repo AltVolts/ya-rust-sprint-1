@@ -243,4 +243,107 @@ mod tests {
         let buff_record = YPBankBinRecords::from_read(&mut buffer).unwrap();
         assert_eq!(test_bin_records, buff_record);
     }
+
+    #[test]
+    fn test_invalid_magic() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0xDEADBEEFu32.to_be_bytes()); // wrong magic
+        data.extend_from_slice(&(100u32).to_be_bytes()); // record_size (не имеет значения)
+
+        let mut cursor = Cursor::new(data);
+        let result = YPBankBinRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        let msg = err.to_string();
+        assert!(msg.contains("Invalid magic 0xDEADBEEF"));
+    }
+
+    #[test]
+    fn test_invalid_tx_type() {
+        // Формируем корректный заголовок и тело с недопустимым tx_type (3)
+        let mut data = Vec::new();
+        // Заголовок
+        data.extend_from_slice(&MAGIC.to_be_bytes());
+        let body_size = BODY_FIXED_PART_SIZE + 5; // desc_len = 5
+        data.extend_from_slice(&(body_size as u32).to_be_bytes());
+
+        // Тело
+        data.extend_from_slice(&1u64.to_be_bytes());
+        data.push(3); // tx_type -> invalid
+        data.extend_from_slice(&2u64.to_be_bytes());
+        data.extend_from_slice(&3u64.to_be_bytes());
+        data.extend_from_slice(&100u64.to_be_bytes());
+        data.extend_from_slice(&123456u64.to_be_bytes());
+        data.push(0);
+        data.extend_from_slice(&5u32.to_be_bytes());
+        data.extend_from_slice(b"hello");
+
+        let mut cursor = Cursor::new(data);
+        let result = YPBankBinRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(
+            err.to_string()
+                .contains("Invalid transaction type value: 3")
+        );
+    }
+
+    #[test]
+    fn test_invalid_status() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&MAGIC.to_be_bytes());
+        let body_size = BODY_FIXED_PART_SIZE + 5;
+        data.extend_from_slice(&(body_size as u32).to_be_bytes());
+
+        data.extend_from_slice(&1u64.to_be_bytes());
+        data.push(0);
+        data.extend_from_slice(&2u64.to_be_bytes());
+        data.extend_from_slice(&3u64.to_be_bytes());
+        data.extend_from_slice(&100u64.to_be_bytes());
+        data.extend_from_slice(&123456u64.to_be_bytes());
+        data.push(5); // status -> invalid (5)
+        data.extend_from_slice(&5u32.to_be_bytes());
+        data.extend_from_slice(b"hello");
+
+        let mut cursor = Cursor::new(data);
+        let result = YPBankBinRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(
+            err.to_string()
+                .contains("Invalid transaction status value: 5")
+        );
+    }
+
+    #[test]
+    fn test_not_enough_bytes_for_description() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&MAGIC.to_be_bytes());
+        let body_size = BODY_FIXED_PART_SIZE + 5; // заявляем 10 байт под описание
+        data.extend_from_slice(&(body_size as u32).to_be_bytes());
+
+        data.extend_from_slice(&1u64.to_be_bytes());
+        data.push(0);
+        data.extend_from_slice(&2u64.to_be_bytes());
+        data.extend_from_slice(&3u64.to_be_bytes());
+        data.extend_from_slice(&100u64.to_be_bytes());
+        data.extend_from_slice(&123456u64.to_be_bytes());
+        data.push(0);
+        data.extend_from_slice(&10u32.to_be_bytes()); // desc_len = 10
+        // description занимает только 5 байт, но по заголовку должны быть 10
+        data.extend_from_slice(b"hello");
+
+        let mut cursor = Cursor::new(data);
+        let result = YPBankBinRecords::from_read(&mut cursor);
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(
+            err.to_string()
+                .contains("Not enough bytes for description: need 10, have 5")
+        );
+    }
 }
